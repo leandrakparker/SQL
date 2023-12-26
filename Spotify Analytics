@@ -1,0 +1,125 @@
+#For this project, I downloaded Spotify data from Kaggle.
+#Then I created a table within my SQLite Studio database to insert data.
+#Finally, I performed analytics using SQL on the Spotify data.
+
+#Creating the table:
+CREATE TABLE BIT_DB.Spotifydata (
+id integer PRIMARY KEY,
+artist_name varchar NOT NULL,
+track_name varchar NOT NULL,
+track_id varchar NOT NULL,
+popularity integer NOT NULL,
+danceability decimal(4,3) NOT NULL,
+energy decimal(4,3) NOT NULL,
+key integer NOT NULL,
+loudness decimal(5,3) NOT NULL,
+mode integer NOT NULL,
+speechiness decimal(5,4) NOT NULL,
+acousticness decimal(6,5) NOT NULL,
+instrumentalness text NOT NULL,
+liveness decimal(5,4) NOT NULL,
+valence decimal(4,3) NOT NULL,
+tempo decimal(6,3) NOT NULL,
+duration_ms integer NOT NULL,
+time_signature integer NOT NULL 
+)
+
+#Then I inserted the Spotify Data .csv into the table
+
+#Next, I explored the data using the following SQL queries.
+
+#First, I determined the avg popularity, danceability and energy by artist.
+SELECT
+artist_name
+,avg(popularity)
+,avg(danceability)
+,avg(energy)
+FROM BIT_DB.spotifydata
+GROUP BY artist_name
+
+#Then I determined who are the top 5 artists based on popularity.
+SELECT artist_name
+, popularity
+FROM BIT_DB.Spotifydata
+ORDER BY popularity desc
+LIMIT 5;
+
+#Next, I determined the average tempo out of the top 5 tracks with the highest danceability rating.
+#I used a subquery to first determine the top 5 tracks with the highest danceability rating then calculated the Average Tempo of those songs.
+SELECT AVG(tempo) AS AvgerageTempo
+FROM BIT_DB.Spotifydata
+WHERE track_name IN (
+                     SELECT track_name
+                     FROM BIT_DB.Spotifydata
+                     ORDER BY danceability desc
+                     LIMIT 5)
+;
+
+#Then I discovered what artist released the longest song and determined how long the song is in minutes.
+SELECT artist_name
+, track_name
+, ROUND(duration_ms/60000.0, 2) as duration_mins
+FROM BIT_DB.Spotifydata
+ORDER BY duration_ms desc
+LIMIT 1;
+
+#Next, I wanted to know how many artists had an energy rating above 0.6 and liveness above 0.1?
+SELECT COUNT(artist_name)
+FROM BIT_DB.Spotifydata
+WHERE energy > 0.6
+AND liveness > 0.1
+
+#Next, I grouped the tracks by popularity: popularity higher than 92 "Hit Song", 87-91 "Very Popular", 82-86 "Somewhat Popular", below 82 "Not Popular".
+#I used a CASE statement to order by the new groupings.
+SELECT track_name
+, CASE
+      WHEN popularity > 92 THEN "Hit Song"
+      WHEN popularity BETWEEN 87 AND 91 THEN "Very Popular"
+      WHEN popularity BETWEEN 82 AND 86 THEN "Somewhat Popular"
+      ELSE "Not Popular"
+      END AS popularity_rating
+FROM BIT_DB.Spotifydata
+ORDER BY CASE
+              WHEN popularity > 92 THEN 1
+              WHEN popularity BETWEEN 87 AND 91 THEN 2
+              WHEN popularity BETWEEN 82 AND 86 THEN 3
+              ELSE 4
+              END
+;         
+
+#The above grouping, made me curious to find out how many songs fall into the "Hit Song" Category.
+SELECT COUNT(track_id)
+, CASE
+      WHEN popularity > 92 THEN "Hit Song"
+      WHEN popularity BETWEEN 87 AND 91 THEN "Very Popular"
+      WHEN popularity BETWEEN 82 AND 86 THEN "Somewhat Popular"
+      ELSE "Not Popular"
+      END AS popularity_rating
+FROM BIT_DB.Spotifydata
+WHERE popularity_rating = "Hit Song";
+
+#I then determined how many artists have more than one song in this dataset.
+#To do this, I needed to create a subquery to filter only the artists with more than one song, then use the outer query to count the total artists.
+SELECT COUNT(*) as ArtistsWithMoreThanOneSong
+FROM (
+    SELECT artist_name
+    FROM BIT_DB.Spotifydata
+    GROUP BY artist_name
+    HAVING COUNT(track_id) > 1
+) as SubQuery;
+
+#This made me curious to know what percentage of artists in this dataset have more than one song.
+#To determine this, I used the query above as a subquery to find the artists with more than one song.
+#Then I used another subquery to find the total number of unique artists.
+#I then divided the Number of Artists With More Than One Song by the Total Number of Unique Artists and multiplied by 100 to get the percent value.
+SELECT 
+      (SELECT COUNT(*) FROM 
+                            (SELECT artist_name
+                             FROM BIT_DB.Spotifydata
+                             GROUP BY artist_name
+                             HAVING COUNT(track_name) > 1
+                            ) AS ArtistWithMoreThanOneSong
+      ) * 100.0 / 
+                 (SELECT COUNT(DISTINCT artist_name) AS UniqueArtists
+                  FROM BIT_DB.Spotifydata
+                 ) AS PercentArtistsMoreThanOneSong;
