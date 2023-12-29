@@ -1,0 +1,231 @@
+#In this project, I utilized a Dataset which represents a digital media store and includes tables for 
+#artists, albums, song tracks, genres, media types, playlists, invoices, customers and employees.
+
+#I added this database to SQLite Studio and began analyzing the data.
+
+#I first wanted to see all customers not in the US.
+SELECT *
+FROM customers
+WHERE Country NOT IN ('United States', 'USA');
+
+#Next, I only wanted to show customers from Brazil.
+SELECT *
+FROM customers
+WHERE Country = 'Brazil';
+
+#Here, I wanted to find invoices of customers who are from Brazil (showing Customer name, invoice ID, Date of invoice, and billing country).
+SELECT c.FirstName || ' ' || c.LastName AS CustomerName
+, i.invoiceId
+, i.InvoiceDate
+, i.BillingCountry
+FROM customers c
+LEFT JOIN invoices i
+ON c.CustomerId = i.CustomerId
+WHERE c.Country = 'Brazil' AND i.BillingCountry = 'Brazil';
+
+#Next, I determined which employees are sales agents.
+SELECT LastName
+, FirstName
+, Title
+FROM Employees
+WHERE Title = 'Sales Support Agent';
+
+#Here, I wanted to know which countries Chinook has sold to previously.
+SELECT DISTINCT BillingCountry
+FROM invoices;
+
+#Next, I wanted all invoices associated with each sales agent.
+#I used a concatenate function to join the First Name and Last Name columns of the Employee's name.
+SELECT e.FirstName || ' ' || e.LastName AS AgentFullName
+, i.InvoiceId
+, i.InvoiceDate
+, i.BillingAddress
+, i.Total
+FROM customers c
+JOIN invoices i
+ON c.CustomerId = i.CustomerId
+JOIN employees e
+ON c.SupportRepId = e.EmployeeId
+ORDER BY AgentFullName, i.InvoiceDate;
+
+#Here, I provide a list of all the invoices for all customers including invoice total, customer name, country and sales agent name.
+SELECT c.FirstName || ' ' || c.LastName AS CustomerFullName
+, e.FirstName || ' ' || e.LastName AS AgentFullName
+, i.InvoiceId
+, i.InvoiceDate
+, i.BillingCountry
+, i.Total
+FROM customers c
+JOIN invoices i
+ON c.CustomerId = i.CustomerId
+JOIN employees e
+ON c.SupportRepId = e.EmployeeId
+ORDER BY CustomerFullName, i.InvoiceDate;
+
+#Then, I determined how many invoices there were in 2009?
+SELECT COUNT(invoiceId) AS NumberOfInvoices
+FROM invoices
+WHERE InvoiceDate LIKE '2009%'
+
+#Alternatively I could have used the filter: WHERE InvoiceDate BETWEEN '2009-01-01' AND '2009-12-31'
+
+#Next, I determined what the total sales were in 2009?
+SELECT ROUND(SUM(total),2) AS TotalSales
+FROM Invoices
+WHERE InvoiceDate LIKE '2009%'
+
+#Here, I display the purchased track name along with the artist name and each invoice line ID
+SELECT t.Name AS TrackName
+, art.Name AS ArtistName
+, item.invoiceLineId
+FROM invoice_items item
+JOIN tracks t ON item.TrackID = t.TrackID
+JOIN albums al ON al.AlbumId = t.AlbumID
+JOIN artists art ON al.ArtistId = art.ArtistId;
+
+#Next, I created a list of all tracks that includes the album name, media type and genre.
+SELECT tracks.Name AS TrackName
+, albums.Title AS AlbumName
+, media_types.Name AS MediaType
+, genres.Name AS Genre
+FROM tracks
+JOIN albums ON tracks.AlbumId = albums.AlbumId
+JOIN media_types ON tracks.MediaTypeId = media_types.MediaTypeId
+JOIN genres ON tracks.GenreId = genres.GenreId
+
+#Then, I determined the total sales made by each sales agent.
+SELECT e.FirstName || ' ' || e.LastName AS SalesAgentName
+, ROUND(SUM(i.total), 2) AS TotalSales
+FROM Employees e
+JOIN customers c
+ON e.EmployeeId = c.SupportRepId
+JOIN invoices i
+ON c.CustomerId = i.CustomerId
+WHERE e.Title = 'Sales Support Agent'
+GROUP BY SalesAgentName
+ORDER BY TotalSales DESC;
+
+#Next, I determined which sales agent made the most money in sales in 2009?
+SELECT e.FirstName || ' ' || e.LastName AS SalesAgentName
+, ROUND(SUM(i.total), 2) AS TotalSales
+FROM Employees e
+JOIN customers c
+ON e.EmployeeId = c.SupportRepId
+JOIN invoices i
+ON c.CustomerId = i.CustomerId
+WHERE i.InvoiceDate LIKE '2009%'
+AND e.Title = 'Sales Support Agent'
+GROUP BY SalesAgentName
+ORDER BY TotalSales DESC
+LIMIT 1;
+
+#Then, I determined what were the Top selling tracks?
+SELECT t.TrackId
+, t.Name AS TrackName
+, SUM(item.UnitPrice*item.Quantity) AS Revenue
+FROM invoice_items item
+JOIN tracks t ON item.TrackId = t.TrackId
+GROUP BY t.TrackId
+ORDER BY Revenue DESC
+LIMIT 50;
+
+#Next, I determined which genres were the most popular in terms of units sold or revenue generated.
+SELECT gen.Name AS Genre
+, SUM(item.Quantity) AS TotalUnitsSold
+, ROUND(SUM(item.UnitPrice*item.Quantity), 2) AS Revenue
+FROM invoice_items item
+JOIN tracks t ON item.TrackId = t.TrackId
+JOIN genres gen ON t.GenreId = gen.GenreId
+GROUP BY Gen.Name
+ORDER BY Revenue DESC;
+
+#Next, I found out which country had the most sales in 2009?
+SELECT 
+BillingCountry
+, ROUND(SUM(Total),2) AS TotalSales
+FROM invoices inv
+GROUP BY BillingCountry
+ORDER BY SUM(Total) DESC;
+
+#Then I determined which customers have spent over $40?
+WITH Customers_CTE AS (
+SELECT c.FirstName || ' ' || c.LastName AS CustomerName
+, SUM(inv.Total) AS TotalSpent
+FROM customers c
+LEFT JOIN invoices inv
+ON c.CustomerId = inv.CustomerId
+GROUP BY CustomerName
+)
+SELECT CustomerName
+, TotalSpent
+FROM Customers_CTE
+WHERE TotalSpent > 40
+ORDER BY TotalSpent DESC;
+
+#Then I ranked the Customers based on Total Spending.
+SELECT c.CustomerId
+, c.FirstName
+, c.LastName
+, SUM(inv.Total) AS TotalSpent
+, RANK() OVER (ORDER BY SUM(inv.Total) DESC) AS SpendingRank
+FROM customers c
+JOIN invoices inv 
+ON c.CustomerId = inv.CustomerId
+GROUP BY c.CustomerId
+ORDER BY TotalSpent DESC;
+
+#Next, I determined what the average spent across all customers?
+SELECT ROUND(SUM(inv.Total) / COUNT(inv.InvoiceId), 2) AS AverageSpent
+FROM customers c
+LEFT JOIN invoices inv
+ON c.CustomerId = inv.CustomerId;
+
+#Then I determiend what the average spent was per customer?
+SELECT c.CustomerId
+, c.FirstName
+, c.LastName
+, ROUND(SUM(inv.Total) / COUNT(inv.InvoiceId), 2) AS AverageSpent
+FROM customers c
+LEFT JOIN invoices inv
+ON c.CustomerId = inv.CustomerId
+GROUP By c.CustomerId;
+#Note: I am calulating Average by calculating the total of all invoice amounts and dividing it by the total number of invoices. 
+#This will give a more accurate number as the AVG() function will simply return the total of the one invoice if a customer only has one invoice.
+
+#Then I wanted to know, what the first purchase date was for each Customer?
+SELECT DISTINCT c.CustomerId
+, c.FirstName
+, c.LastName
+, FIRST_VALUE(inv.InvoiceDate) OVER (PARTITION BY c.customerID ORDER BY inv.InvoiceDate) AS FirstPurchaseDate
+FROM customers c
+JOIN invoices inv
+ON c.CustomerId = inv.CustomerId
+ORDER BY c.CustomerId;
+
+
+#I was curious to know if there were any tracks that have not been sold which could indicate the need for removal.
+WITH Tracks_CTE AS(
+SELECT
+t.Name AS TrackName
+, SUM(item.Quantity) AS UnitsSold
+FROM tracks t
+LEFT JOIN invoice_items item
+ON t.TrackId = item.TrackId
+GROUP BY t.Name
+)
+SELECT TrackName
+, UnitsSold
+FROM Tracks_CTE
+WHERE UnitsSold = 0
+
+#Lastly, I created a list of US States and the purchased music genres in order of popularity (revenue).
+SELECT inv.BillingState
+, g.Name AS Genre
+, ROUND(SUM(item.quantity*item.UnitPrice), 2) AS TotalRevenue
+FROM genres g
+JOIN tracks t ON g.GenreId = t.GenreId
+JOIN invoice_items item ON t.TrackId = item.TrackId
+JOIN invoices inv ON item.InvoiceID = inv.InvoiceId
+WHERE inv.BillingCountry = 'USA'
+GROUP BY inv.BillingState, g.Name
+ORDER BY inv.BillingState, TotalRevenue DESC;
